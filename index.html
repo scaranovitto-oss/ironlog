@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Iron Log</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Iron Log" />
+<meta name="theme-color" content="#131417" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23131417'/%3E%3Crect x='28' y='45' width='44' height='10' rx='3' fill='%23F2C14E'/%3E%3Crect x='16' y='38' width='10' height='24' rx='3' fill='%23F2C14E'/%3E%3Crect x='74' y='38' width='10' height='24' rx='3' fill='%23F2C14E'/%3E%3C/svg%3E" />
+<style>
+  html, body { margin: 0; padding: 0; background: #131417; overscroll-behavior-y: none; }
+  * { -webkit-tap-highlight-color: transparent; }
+</style>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const PLAN_KEY = "workout-plan-v1";
+const HISTORY_KEY = "workout-history-v1";
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+async function storageGet(key) {
+  const v = localStorage.getItem(key);
+  return v === null ? null : { value: v };
+}
+async function storageSet(key, value) {
+  localStorage.setItem(key, value);
+  return { value };
+}
+
+function useBeep() {
+  const ctxRef = useRef(null);
+  return useCallback(() => {
+    try {
+      if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = ctxRef.current;
+      [0, 0.18, 0.36].forEach((t, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.value = i === 2 ? 1046 : 880;
+        gain.gain.setValueAtTime(0.001, ctx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + t);
+        osc.stop(ctx.currentTime + t + 0.16);
+      });
+    } catch (e) {}
+  }, []);
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* --- icone minimali inline, nessuna dipendenza esterna --- */
+const Icon = ({ children, size = 18, color = "currentColor", ...rest }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...rest}>
+    {children}
+  </svg>
+);
+const Plus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Icon>;
+const Trash2 = (p) => <Icon {...p}><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></Icon>;
+const Check = (p) => <Icon {...p}><polyline points="20 6 9 17 4 12" /></Icon>;
+const ChevronRight = (p) => <Icon {...p}><polyline points="9 18 15 12 9 6" /></Icon>;
+const X = (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Icon>;
+const ClockIcon = (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></Icon>;
+const BarChart3 = (p) => <Icon {...p}><line x1="4" y1="20" x2="4" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="20" y1="20" x2="20" y2="14" /></Icon>;
+const Dumbbell = (p) => <Icon {...p}><path d="M6 7v10M18 7v10M2 10v4M22 10v4M6 12h12" /></Icon>;
+const Play = (p) => <Icon {...p}><polygon points="6 3 20 12 6 21 6 3" /></Icon>;
+const Pause = (p) => <Icon {...p}><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></Icon>;
+const ClipboardList = (p) => <Icon {...p}><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3" /></Icon>;
+const HistoryIcon = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M12 7v5l3 3" /></Icon>;
+const Flame = (p) => <Icon {...p}><path d="M12 2s5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 1-3s1 2 2 2c1.5 0-1-3 2-9z" /></Icon>;
+
+function App() {
+  const [view, setView] = useState("scheda");
+  const [plan, setPlan] = useState({ days: [] });
+  const [history, setHistory] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await storageGet(PLAN_KEY);
+        const h = await storageGet(HISTORY_KEY);
+        if (p) setPlan(JSON.parse(p.value));
+        if (h) setHistory(JSON.parse(h.value));
+      } catch (e) {
+        setError("Impossibile caricare i dati salvati.");
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    storageSet(PLAN_KEY, JSON.stringify(plan)).catch(() => setError("Salvataggio scheda non riuscito."));
+  }, [plan, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    storageSet(HISTORY_KEY, JSON.stringify(history)).catch(() => setError("Salvataggio storico non riuscito."));
+  }, [history, loaded]);
+
+  const lastEntryFor = useCallback(
+    (exerciseId) => {
+      for (let i = history.length - 1; i >= 0; i--) {
+        const e = history[i].entries.find((x) => x.exerciseId === exerciseId);
+        if (e && e.sets.some((s) => s.weight !== "")) return e;
+      }
+      return null;
+    },
+    [history]
+  );
+
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#131417", minHeight: "100vh", color: "#EDEBE3", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+        .bn { font-family: 'Bebas Neue', 'Inter', sans-serif; letter-spacing: 0.02em; }
+        input, select { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #2c2e33; border-radius: 3px; }
+        .tap:active { transform: scale(0.97); }
+      `}</style>
+
+      {error && <div style={{ background: "#3a1f1f", color: "#F2B4B4", padding: "8px 16px", fontSize: 13 }}>{error}</div>}
+
+      <header style={{ padding: "20px 20px 16px", borderBottom: "1px solid #24262b", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: "#F2C14E", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Dumbbell size={20} color="#131417" />
+        </div>
+        <h1 className="bn" style={{ fontSize: 28, margin: 0, lineHeight: 1 }}>IRON LOG</h1>
+      </header>
+
+      <main style={{ flex: 1, padding: "18px 16px 90px", maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+        {!loaded ? (
+          <p style={{ color: "#8B8D94", textAlign: "center", marginTop: 60 }}>Caricamento...</p>
+        ) : view === "scheda" ? (
+          <SchedaView plan={plan} setPlan={setPlan} />
+        ) : view === "allenamento" ? (
+          <AllenamentoView plan={plan} history={history} setHistory={setHistory} lastEntryFor={lastEntryFor} />
+        ) : (
+          <StoricoView history={history} setHistory={setHistory} plan={plan} />
+        )}
+      </main>
+
+      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#191a1e", borderTop: "1px solid #24262b", display: "flex", padding: "8px 12px calc(8px + env(safe-area-inset-bottom))", justifyContent: "center", gap: 8 }}>
+        <div style={{ display: "flex", gap: 6, maxWidth: 480, width: "100%" }}>
+          <NavBtn active={view === "scheda"} onClick={() => setView("scheda")} icon={<ClipboardList size={20} />} label="Scheda" />
+          <NavBtn active={view === "allenamento"} onClick={() => setView("allenamento")} icon={<Flame size={20} />} label="Allenamento" />
+          <NavBtn active={view === "storico"} onClick={() => setView("storico")} icon={<HistoryIcon size={20} />} label="Storico" />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function NavBtn({ active, onClick, icon, label }) {
+  return (
+    <button className="tap" onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px", borderRadius: 10, border: "none", background: active ? "#232520" : "transparent", color: active ? "#F2C14E" : "#8B8D94", cursor: "pointer" }}>
+      {icon}
+      <span style={{ fontSize: 11, fontWeight: 500 }}>{label}</span>
+    </button>
+  );
+}
+
+function SchedaView({ plan, setPlan }) {
+  const [newDayName, setNewDayName] = useState("");
+  const addDay = () => {
+    const name = newDayName.trim();
+    if (!name) return;
+    const day = { id: uid(), name, exercises: [] };
+    setPlan((p) => ({ ...p, days: [...p.days, day] }));
+    setNewDayName("");
+  };
+  const removeDay = (dayId) => setPlan((p) => ({ ...p, days: p.days.filter((d) => d.id !== dayId) }));
+
+  if (plan.days.length === 0) {
+    return (
+      <div>
+        <EmptyState title="Crea la tua scheda" body="Dividi l'allenamento in giornate (es. Push, Pull, Legs) e aggiungi gli esercizi ad ognuna." />
+        <AddDayForm value={newDayName} setValue={setNewDayName} onAdd={addDay} />
+      </div>
+    );
+  }
+  return (
+    <div>
+      {plan.days.map((day) => <DayCard key={day.id} day={day} setPlan={setPlan} onRemove={() => removeDay(day.id)} />)}
+      <AddDayForm value={newDayName} setValue={setNewDayName} onAdd={addDay} />
+    </div>
+  );
+}
+
+function AddDayForm({ value, setValue, onAdd }) {
+  return (
+    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <input value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && onAdd()} placeholder="Nome giornata (es. Push)" style={inputStyle} />
+      <button className="tap" onClick={onAdd} style={primaryBtnStyle}><Plus size={18} /></button>
+    </div>
+  );
+}
+
+function DayCard({ day, setPlan, onRemove }) {
+  const [expanded, setExpanded] = useState(true);
+  const [form, setForm] = useState({ name: "", sets: 3, reps: "8-12", rest: 90 });
+  const updateDay = (fn) => setPlan((p) => ({ ...p, days: p.days.map((d) => (d.id === day.id ? fn(d) : d)) }));
+  const addExercise = () => {
+    const name = form.name.trim();
+    if (!name) return;
+    const ex = { id: uid(), name, sets: Math.max(1, Number(form.sets) || 1), reps: form.reps.trim() || "-", rest: Math.max(0, Number(form.rest) || 0) };
+    updateDay((d) => ({ ...d, exercises: [...d.exercises, ex] }));
+    setForm({ name: "", sets: 3, reps: "8-12", rest: 90 });
+  };
+  const removeExercise = (exId) => updateDay((d) => ({ ...d, exercises: d.exercises.filter((e) => e.id !== exId) }));
+
+  return (
+    <div style={{ ...cardStyle, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setExpanded((v) => !v)}>
+        <h2 className="bn" style={{ fontSize: 22, margin: 0, color: "#F2C14E" }}>{day.name}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 12, color: "#8B8D94" }}>{day.exercises.length} esercizi</span>
+          <button className="tap" onClick={(e) => { e.stopPropagation(); onRemove(); }} style={iconBtnStyle}><Trash2 size={16} color="#D96E6E" /></button>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 14 }}>
+          {day.exercises.map((ex) => (
+            <div key={ex.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid #24262b" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>{ex.name}</div>
+                <div style={{ fontSize: 12, color: "#8B8D94", marginTop: 2 }}>{ex.sets} serie &middot; {ex.reps} rip &middot; {ex.rest}s recupero</div>
+              </div>
+              <button className="tap" onClick={() => removeExercise(ex.id)} style={iconBtnStyle}><Trash2 size={15} color="#5F6067" /></button>
+            </div>
+          ))}
+          <div style={{ marginTop: 12, background: "#191a1e", borderRadius: 8, padding: 12 }}>
+            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Nome esercizio (es. Panca piana)" style={{ ...inputStyle, marginBottom: 8 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <LabeledInput label="Serie" value={form.sets} onChange={(v) => setForm((f) => ({ ...f, sets: v }))} type="number" />
+              <LabeledInput label="Rip" value={form.reps} onChange={(v) => setForm((f) => ({ ...f, reps: v }))} />
+              <LabeledInput label="Rec (s)" value={form.rest} onChange={(v) => setForm((f) => ({ ...f, rest: v }))} type="number" />
+            </div>
+            <button className="tap" onClick={addExercise} style={{ ...primaryBtnStyle, width: "100%", marginTop: 10 }}><Plus size={16} /> Aggiungi esercizio</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LabeledInput({ label, value, onChange, type = "text" }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span style={{ fontSize: 11, color: "#8B8D94" }}>{label}</span>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+    </label>
+  );
+}
+
+function AllenamentoView({ plan, history, setHistory, lastEntryFor }) {
+  const [session, setSession] = useState(null);
+  const [timer, setTimer] = useState(null);
+  const intervalRef = useRef(null);
+  const beep = useBeep();
+
+  useEffect(() => {
+    if (timer && timer.running) {
+      intervalRef.current = setInterval(() => {
+        setTimer((t) => {
+          if (!t) return t;
+          if (t.remaining <= 1) { beep(); return { ...t, remaining: 0, running: false }; }
+          return { ...t, remaining: t.remaining - 1 };
+        });
+      }, 1000);
+      return () => clearInterval(intervalRef.current);
+    }
+  }, [timer && timer.running, timer && timer.total]);
+
+  if (plan.days.length === 0) return <EmptyState title="Nessuna scheda" body="Vai su Scheda e crea prima una giornata di allenamento." />;
+
+  if (!session) {
+    return (
+      <div>
+        <p style={{ color: "#8B8D94", fontSize: 14, marginBottom: 14 }}>Scegli la giornata da allenare oggi.</p>
+        {plan.days.map((day) => (
+          <button key={day.id} className="tap" onClick={() => {
+            const entries = day.exercises.map((ex) => {
+              const last = lastEntryFor(ex.id);
+              return { exerciseId: ex.id, name: ex.name, rest: ex.rest, sets: Array.from({ length: ex.sets }, (_, i) => ({ weight: last && last.sets[i] ? last.sets[i].weight : "", reps: "", done: false })) };
+            });
+            setSession({ dayId: day.id, dayName: day.name, entries });
+          }} style={{ ...cardStyle, width: "100%", textAlign: "left", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+            <div>
+              <div className="bn" style={{ fontSize: 20, color: "#F2C14E" }}>{day.name}</div>
+              <div style={{ fontSize: 12, color: "#8B8D94" }}>{day.exercises.length} esercizi</div>
+            </div>
+            <ChevronRight size={20} color="#5F6067" />
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const startTimer = (seconds, label) => { if (seconds <= 0) return; setTimer({ total: seconds, remaining: seconds, running: true, label }); };
+  const setSet = (exerciseId, idx, field, value) => setSession((s) => ({ ...s, entries: s.entries.map((e) => e.exerciseId !== exerciseId ? e : { ...e, sets: e.sets.map((st, i) => (i === idx ? { ...st, [field]: value } : st)) }) }));
+  const toggleDone = (exerciseId, idx, rest) => {
+    let willBeDone = false;
+    setSession((s) => ({ ...s, entries: s.entries.map((e) => e.exerciseId !== exerciseId ? e : { ...e, sets: e.sets.map((st, i) => { if (i !== idx) return st; willBeDone = !st.done; return { ...st, done: !st.done }; }) }) }));
+    if (willBeDone) startTimer(rest, "Recupero");
+  };
+  const finishSession = () => {
+    const entries = session.entries.map((e) => ({ exerciseId: e.exerciseId, name: e.name, sets: e.sets.filter((s) => s.weight !== "" || s.reps !== "").map((s) => ({ weight: s.weight, reps: s.reps })) })).filter((e) => e.sets.length > 0);
+    if (entries.length > 0) setHistory((h) => [...h, { id: uid(), date: new Date().toISOString(), dayId: session.dayId, dayName: session.dayName, entries }]);
+    setSession(null); setTimer(null);
+  };
+
+  return (
+    <div>
+      {timer && <RestTimer timer={timer} onPause={() => setTimer((t) => ({ ...t, running: !t.running }))} onAdjust={(d) => setTimer((t) => ({ ...t, remaining: Math.max(0, t.remaining + d), total: Math.max(t.total, t.remaining + d) }))} onClose={() => setTimer(null)} />}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h2 className="bn" style={{ fontSize: 24, margin: 0, color: "#F2C14E" }}>{session.dayName}</h2>
+        <button className="tap" onClick={() => { if (window.confirm("Interrompere l'allenamento senza salvare?")) { setSession(null); setTimer(null); } }} style={{ ...iconBtnStyle, color: "#8B8D94" }}><X size={18} /></button>
+      </div>
+      {session.entries.map((e) => (
+        <div key={e.exerciseId} style={{ ...cardStyle, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontWeight: 600, fontSize: 15 }}>{e.name}</span>
+            <span style={{ fontSize: 11, color: "#8B8D94", display: "flex", alignItems: "center", gap: 4 }}><ClockIcon size={12} /> {e.rest}s</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "24px 1fr 1fr 32px", gap: 8, alignItems: "center", marginBottom: 6 }}>
+            <span></span><span style={{ fontSize: 11, color: "#5F6067" }}>Kg</span><span style={{ fontSize: 11, color: "#5F6067" }}>Rip</span><span></span>
+          </div>
+          {e.sets.map((st, idx) => (
+            <div key={idx} style={{ display: "grid", gridTemplateColumns: "24px 1fr 1fr 32px", gap: 8, alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 13, color: "#8B8D94", textAlign: "center" }}>{idx + 1}</span>
+              <input value={st.weight} onChange={(ev) => setSet(e.exerciseId, idx, "weight", ev.target.value)} inputMode="decimal" placeholder="0" style={{ ...inputStyle, textAlign: "center", padding: "8px 6px", opacity: st.done ? 0.6 : 1 }} />
+              <input value={st.reps} onChange={(ev) => setSet(e.exerciseId, idx, "reps", ev.target.value)} inputMode="numeric" placeholder="0" style={{ ...inputStyle, textAlign: "center", padding: "8px 6px", opacity: st.done ? 0.6 : 1 }} />
+              <button className="tap" onClick={() => toggleDone(e.exerciseId, idx, e.rest)} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: st.done ? "#3FA772" : "#24262b", color: st.done ? "#0D2417" : "#5F6067", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Check size={16} /></button>
+            </div>
+          ))}
+        </div>
+      ))}
+      <button className="tap" onClick={finishSession} style={{ ...primaryBtnStyle, width: "100%", padding: "14px", fontSize: 15 }}>Termina allenamento</button>
+    </div>
+  );
+}
+
+function RestTimer({ timer, onPause, onAdjust, onClose }) {
+  const pct = timer.total > 0 ? timer.remaining / timer.total : 0;
+  const r = 42, circ = 2 * Math.PI * r;
+  const finished = timer.remaining === 0;
+  return (
+    <div style={{ position: "sticky", top: 8, zIndex: 5, background: "#191a1e", border: "1px solid #24262b", borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+      <svg width="96" height="96" viewBox="0 0 96 96">
+        <circle cx="48" cy="48" r={r} fill="none" stroke="#24262b" strokeWidth="8" />
+        <circle cx="48" cy="48" r={r} fill="none" stroke={finished ? "#3FA772" : "#F2C14E"} strokeWidth="8" strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)} strokeLinecap="round" transform="rotate(-90 48 48)" style={{ transition: "stroke-dashoffset 1s linear" }} />
+        <text x="48" y="53" textAnchor="middle" fontSize="20" fontWeight="600" fill="#EDEBE3">{formatTime(timer.remaining)}</text>
+      </svg>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, color: "#8B8D94", marginBottom: 8 }}>{finished ? "Recupero finito" : timer.label}</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="tap" onClick={() => onAdjust(-15)} style={smallBtnStyle}>-15s</button>
+          <button className="tap" onClick={() => onAdjust(15)} style={smallBtnStyle}>+15s</button>
+          <button className="tap" onClick={onPause} style={smallBtnStyle}>{timer.running ? <Pause size={14} /> : <Play size={14} />}</button>
+          <button className="tap" onClick={onClose} style={smallBtnStyle}><X size={14} /></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StoricoView({ history, setHistory, plan }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const allExercises = [];
+  const seen = new Set();
+  plan.days.forEach((d) => d.exercises.forEach((e) => { if (!seen.has(e.id)) { seen.add(e.id); allExercises.push(e); } }));
+  const [progressExId, setProgressExId] = useState(allExercises[0]?.id || "");
+
+  if (history.length === 0) return <EmptyState title="Nessun allenamento registrato" body="Le sessioni completate compariranno qui, con i pesi usati e l'andamento nel tempo." />;
+
+  const progressData = history.map((s) => {
+    const e = s.entries.find((x) => x.exerciseId === progressExId);
+    if (!e) return null;
+    const weights = e.sets.map((st) => parseFloat(st.weight)).filter((w) => !isNaN(w));
+    if (weights.length === 0) return null;
+    return { date: s.date, max: Math.max(...weights) };
+  }).filter(Boolean);
+
+  const removeSession = (id) => setHistory((h) => h.filter((s) => s.id !== id));
+
+  return (
+    <div>
+      {allExercises.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <BarChart3 size={16} color="#F2C14E" />
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Progressi peso massimo</span>
+          </div>
+          <select value={progressExId} onChange={(e) => setProgressExId(e.target.value)} style={{ ...inputStyle, marginBottom: 12 }}>
+            {allExercises.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          {progressData.length === 0 ? <p style={{ fontSize: 13, color: "#8B8D94" }}>Nessun dato per questo esercizio.</p> : <MiniChart data={progressData} />}
+        </div>
+      )}
+      {[...history].reverse().map((s) => (
+        <div key={s.id} style={{ ...cardStyle, marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{s.dayName}</div>
+              <div style={{ fontSize: 12, color: "#8B8D94" }}>{formatDate(s.date)}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button className="tap" onClick={(e) => { e.stopPropagation(); if (window.confirm("Eliminare questa sessione dallo storico?")) removeSession(s.id); }} style={iconBtnStyle}><Trash2 size={15} color="#5F6067" /></button>
+              <ChevronRight size={16} color="#5F6067" style={{ transform: expandedId === s.id ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+            </div>
+          </div>
+          {expandedId === s.id && (
+            <div style={{ marginTop: 10, borderTop: "1px solid #24262b", paddingTop: 10 }}>
+              {s.entries.map((e) => (
+                <div key={e.exerciseId} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3 }}>{e.name}</div>
+                  <div style={{ fontSize: 12, color: "#8B8D94" }}>{e.sets.map((st) => `${st.weight || "-"}kg x${st.reps || "-"}`).join("  ·  ")}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MiniChart({ data }) {
+  const w = 280, h = 100, pad = 10;
+  const values = data.map((d) => d.max);
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const points = data.map((d, i) => {
+    const x = pad + (i / Math.max(1, data.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((d.max - min) / range) * (h - pad * 2);
+    return [x, y];
+  });
+  const path = points.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(" ");
+  return (
+    <div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
+        <path d={path} fill="none" stroke="#F2C14E" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {points.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3" fill="#F2C14E" />)}
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#8B8D94", marginTop: 4 }}>
+        <span>{formatDate(data[0].date)}</span><span>Max: {max}kg</span><span>{formatDate(data[data.length - 1].date)}</span>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ title, body }) {
+  return (
+    <div style={{ textAlign: "center", padding: "50px 20px", color: "#8B8D94" }}>
+      <Dumbbell size={32} color="#3a3c42" style={{ marginBottom: 12 }} />
+      <div className="bn" style={{ fontSize: 20, color: "#EDEBE3", marginBottom: 6 }}>{title}</div>
+      <p style={{ fontSize: 14, maxWidth: 280, margin: "0 auto" }}>{body}</p>
+    </div>
+  );
+}
+
+const cardStyle = { background: "#191a1e", border: "1px solid #24262b", borderRadius: 14, padding: 16 };
+const inputStyle = { background: "#131417", border: "1px solid #2c2e33", borderRadius: 8, color: "#EDEBE3", padding: "9px 10px", fontSize: 14, width: "100%", boxSizing: "border-box", outline: "none" };
+const primaryBtnStyle = { background: "#F2C14E", color: "#131417", border: "none", borderRadius: 8, padding: "9px 14px", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 };
+const iconBtnStyle = { background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" };
+const smallBtnStyle = { background: "#24262b", border: "none", borderRadius: 6, color: "#EDEBE3", padding: "5px 8px", fontSize: 12, cursor: "pointer" };
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
