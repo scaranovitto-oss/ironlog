@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Iron Log</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Iron Log" />
+<meta name="theme-color" content="#131417" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+<style>
+  html, body { margin: 0; padding: 0; background: #131417; overscroll-behavior-y: none; }
+  * { -webkit-tap-highlight-color: transparent; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const PLAN_KEY = "workout-plan-v2";
+const HISTORY_KEY = "workout-history-v1";
+const OLD_PLAN_KEYS = ["workout-plan-v1"];
+
+// Database esercizi (nome, categoria) — usato per l'autocompletamento nella scheda
+const EXERCISE_DB = [{"n":"Ab Wheel Rollout","c":"Core"},{"n":"Ab Wheel Rollout - a ROM completo","c":"Core"},{"n":"Ab Wheel Rollout - a ROM parziale","c":"Core"},{"n":"Ab Wheel Rollout - con pausa isometrica","c":"Core"},{"n":"Ab Wheel Rollout - in ginocchio","c":"Core"},{"n":"Ab Wheel Rollout - in piedi","c":"Core"},{"n":"Abductor Machine","c":"Gambe / Glutei"},{"n":"Abductor Machine - busto inclinato in avanti","c":"Gambe / Glutei"},{"n":"Abductor Machine - busto neutro","c":"Gambe / Glutei"},{"n":"Abductor Machine - busto reclinato","c":"Gambe / Glutei"},{"n":"Abductor Machine - con pausa in massima abduzione","c":"Gambe / Glutei"},{"n":"Abductor Machine - unilaterale","c":"Gambe / Glutei"},{"n":"Adductor Machine","c":"Gambe"},{"n":"Adductor Machine - busto neutro","c":"Gambe"},{"n":"Adductor Machine - con pausa in massima adduzione","c":"Gambe"},{"n":"Adductor Machine - tempo lento","c":"Gambe"},{"n":"Adductor Machine - unilaterale","c":"Gambe"},{"n":"Affondi","c":"Gambe / Glutei"},{"n":"Affondi - al multipower","c":"Gambe / Glutei"},{"n":"Affondi - all'indietro","c":"Gambe / Glutei"},{"n":"Affondi - camminati","c":"Gambe / Glutei"},{"n":"Affondi - con bilanciere","c":"Gambe / Glutei"},{"n":"Affondi - con kettlebell goblet","c":"Gambe / Glutei"},{"n":"Affondi - con manubri","c":"Gambe / Glutei"},{"n":"Affondi - curtsy","c":"Gambe / Glutei"},{"n":"Affondi - deficit","c":"Gambe / Glutei"},{"n":"Affondi - in avanti","c":"Gambe / Glutei"},{"n":"Affondi - laterali","c":"Gambe / Glutei"},{"n":"Alzate anteriori","c":"Spalle"},{"n":"Alzate anteriori - al cavo con corda","c":"Spalle"},{"n":"Alzate anteriori - al cavo singolo","c":"Spalle"},{"n":"Alzate anteriori - con bilanciere","c":"Spalle"},{"n":"Alzate anteriori - con disco","c":"Spalle"},{"n":"Alzate anteriori - con manubri alternate","c":"Spalle"},{"n":"Alzate anteriori - con manubri simultanee","c":"Spalle"},{"n":"Alzate anteriori - presa neutra","c":"Spalle"},{"n":"Alzate anteriori - presa prona","c":"Spalle"},{"n":"Alzate laterali","c":"Spalle"},{"n":"Alzate laterali - al cavo basso","c":"Spalle"},{"n":"Alzate laterali - al cavo dietro il corpo","c":"Spalle"},{"n":"Alzate laterali - alla macchina","c":"Spalle"},{"n":"Alzate laterali - con manubri in piedi","c":"Spalle"},{"n":"Alzate laterali - con manubri seduto","c":"Spalle"},{"n":"Alzate laterali - con pausa in alto","c":"Spalle"},{"n":"Alzate laterali - lean-away","c":"Spalle"},{"n":"Alzate laterali - unilaterali","c":"Spalle"},{"n":"Arnold Curl","c":"Bicipiti"},{"n":"Arnold Curl - alternato","c":"Bicipiti"},{"n":"Arnold Curl - simultaneo","c":"Bicipiti"},{"n":"Arnold Press","c":"Spalle"},{"n":"Arnold Press - alternato","c":"Spalle"},{"n":"Arnold Press - in piedi","c":"Spalle"},{"n":"Arnold Press - seduto","c":"Spalle"},{"n":"Arnold Press - su panca inclinata","c":"Spalle"},{"n":"Arnold Press - unilaterale","c":"Spalle"},{"n":"Back Extension","c":"Schiena / Catena posteriore"},{"n":"Back Extension - 45 gradi","c":"Schiena / Catena posteriore"},{"n":"Back Extension - con bilanciere leggero","c":"Schiena / Catena posteriore"},{"n":"Back Extension - con disco","c":"Schiena / Catena posteriore"},{"n":"Back Extension - con manubrio","c":"Schiena / Catena posteriore"},{"n":"Back Extension - enfasi glutei","c":"Schiena / Catena posteriore"},{"n":"Back Extension - orizzontale","c":"Schiena / Catena posteriore"},{"n":"Back Extension - unilaterale","c":"Schiena / Catena posteriore"},{"n":"Barbell Glute Bridge","c":"Glutei"},{"n":"Barbell Glute Bridge - con miniband","c":"Glutei"},{"n":"Barbell Glute Bridge - con pausa","c":"Glutei"},{"n":"Barbell Glute Bridge - standard","c":"Glutei"},{"n":"Battle Rope","c":"Condizionamento"},{"n":"Battle Rope - cerchi esterni","c":"Condizionamento"},{"n":"Battle Rope - cerchi interni","c":"Condizionamento"},{"n":"Battle Rope - onde alternate","c":"Condizionamento"},{"n":"Battle Rope - onde simultanee","c":"Condizionamento"},{"n":"Battle Rope - slam","c":"Condizionamento"},{"n":"Bench Dip","c":"Tricipiti"},{"n":"Bench Dip - con sovraccarico","c":"Tricipiti"},{"n":"Bench Dip - gambe tese","c":"Tricipiti"},{"n":"Bench Dip - ginocchia flesse","c":"Tricipiti"},{"n":"Bench Dip - piedi rialzati","c":"Tricipiti"},{"n":"Bulgarian Split Squat","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - a corpo libero","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - al multipower","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - busto inclinato in avanti","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - busto verticale","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - con bilanciere","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - con manubri","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - goblet","c":"Gambe / Glutei"},{"n":"Bulgarian Split Squat - piede anteriore rialzato","c":"Gambe / Glutei"},{"n":"Burpee","c":"Full body"},{"n":"Burpee - con manubri","c":"Full body"},{"n":"Burpee - con push-up","c":"Full body"},{"n":"Burpee - con salto alto","c":"Full body"},{"n":"Burpee - devil press","c":"Full body"},{"n":"Burpee - senza push-up","c":"Full body"},{"n":"Burpee - standard","c":"Full body"},{"n":"Cable Crossover","c":"Petto"},{"n":"Cable Crossover - alto-basso","c":"Petto"},{"n":"Cable Crossover - basso-alto","c":"Petto"},{"n":"Cable Crossover - con pausa in chiusura","c":"Petto"},{"n":"Cable Crossover - in ginocchio","c":"Petto"},{"n":"Cable Crossover - medio-medio","c":"Petto"},{"n":"Cable Crossover - unilaterale","c":"Petto"},{"n":"Cable Curl","c":"Bicipiti"},{"n":"Cable Curl - barra dritta","c":"Bicipiti"},{"n":"Cable Curl - barra EZ","c":"Bicipiti"},{"n":"Cable Curl - corda","c":"Bicipiti"},{"n":"Cable Curl - high cable curl","c":"Bicipiti"},{"n":"Cable Curl - unilaterale","c":"Bicipiti"},{"n":"Cable Fly","c":"Petto"},{"n":"Cable Fly - alto-basso","c":"Petto"},{"n":"Cable Fly - basso-alto","c":"Petto"},{"n":"Cable Fly - orizzontale","c":"Petto"},{"n":"Cable Fly - unilaterale","c":"Petto"},{"n":"Cable Lateral Raise","c":"Spalle"},{"n":"Cable Lateral Raise - davanti al corpo","c":"Spalle"},{"n":"Cable Lateral Raise - dietro il corpo","c":"Spalle"},{"n":"Cable Lateral Raise - lean-away","c":"Spalle"},{"n":"Cable Lateral Raise - unilaterale","c":"Spalle"},{"n":"Cable Row","c":"Schiena"},{"n":"Cable Row - presa larga","c":"Schiena"},{"n":"Cable Row - presa stretta","c":"Schiena"},{"n":"Cable Row - supina","c":"Schiena"},{"n":"Cable Row - unilaterale","c":"Schiena"},{"n":"Calf Raise","c":"Polpacci"},{"n":"Calf Raise - al multipower","c":"Polpacci"},{"n":"Calf Raise - alla leg press","c":"Polpacci"},{"n":"Calf Raise - con pausa in allungamento","c":"Polpacci"},{"n":"Calf Raise - donkey calf raise","c":"Polpacci"},{"n":"Calf Raise - in piedi","c":"Polpacci"},{"n":"Calf Raise - seduto","c":"Polpacci"},{"n":"Calf Raise - su step","c":"Polpacci"},{"n":"Calf Raise - unilaterale","c":"Polpacci"},{"n":"Chest Press","c":"Petto"},{"n":"Chest Press - converging","c":"Petto"},{"n":"Chest Press - declinata","c":"Petto"},{"n":"Chest Press - inclinata","c":"Petto"},{"n":"Chest Press - orizzontale","c":"Petto"},{"n":"Chest Press - presa neutra","c":"Petto"},{"n":"Chest Press - presa prona","c":"Petto"},{"n":"Chest Press - unilaterale","c":"Petto"},{"n":"Chest Supported Row","c":"Schiena"},{"n":"Chest Supported Row - macchina","c":"Schiena"},{"n":"Chest Supported Row - manubri","c":"Schiena"},{"n":"Chest Supported Row - presa neutra","c":"Schiena"},{"n":"Chest Supported Row - presa prona","c":"Schiena"},{"n":"Chin-Up","c":"Schiena / Bicipiti"},{"n":"Chin-Up - assistita","c":"Schiena / Bicipiti"},{"n":"Chin-Up - con elastico","c":"Schiena / Bicipiti"},{"n":"Chin-Up - eccentrica","c":"Schiena / Bicipiti"},{"n":"Chin-Up - presa supina media","c":"Schiena / Bicipiti"},{"n":"Chin-Up - presa supina stretta","c":"Schiena / Bicipiti"},{"n":"Chin-Up - zavorrata","c":"Schiena / Bicipiti"},{"n":"Close-Grip Bench Press","c":"Tricipiti / Petto"},{"n":"Close-Grip Bench Press - al multipower","c":"Tricipiti / Petto"},{"n":"Close-Grip Bench Press - con pausa","c":"Tricipiti / Petto"},{"n":"Close-Grip Bench Press - standard","c":"Tricipiti / Petto"},{"n":"Crunch","c":"Addome"},{"n":"Crunch - a terra","c":"Addome"},{"n":"Crunch - al cavo alto","c":"Addome"},{"n":"Crunch - alla macchina","c":"Addome"},{"n":"Crunch - con gambe a 90 gradi","c":"Addome"},{"n":"Crunch - con sovraccarico","c":"Addome"},{"n":"Crunch - inverso","c":"Addome"},{"n":"Crunch - su fitball","c":"Addome"},{"n":"Curl con bilanciere","c":"Bicipiti"},{"n":"Curl con bilanciere - alla panca Scott","c":"Bicipiti"},{"n":"Curl con bilanciere - bilanciere dritto","c":"Bicipiti"},{"n":"Curl con bilanciere - drag curl","c":"Bicipiti"},{"n":"Curl con bilanciere - EZ","c":"Bicipiti"},{"n":"Curl con bilanciere - presa inversa","c":"Bicipiti"},{"n":"Curl con bilanciere - presa larga","c":"Bicipiti"},{"n":"Curl con bilanciere - presa stretta","c":"Bicipiti"},{"n":"Curl con manubri","c":"Bicipiti"},{"n":"Curl con manubri - alternato","c":"Bicipiti"},{"n":"Curl con manubri - concentrato","c":"Bicipiti"},{"n":"Curl con manubri - cross-body","c":"Bicipiti"},{"n":"Curl con manubri - inclinato","c":"Bicipiti"},{"n":"Curl con manubri - simultaneo","c":"Bicipiti"},{"n":"Curl con manubri - su panca Scott","c":"Bicipiti"},{"n":"Curl con manubri - supinato","c":"Bicipiti"},{"n":"Curl con manubri - Zottman","c":"Bicipiti"},{"n":"Deadlift","c":"Catena posteriore"},{"n":"Deadlift - con pausa","c":"Catena posteriore"},{"n":"Deadlift - con trap bar","c":"Catena posteriore"},{"n":"Deadlift - convenzionale","c":"Catena posteriore"},{"n":"Deadlift - deficit","c":"Catena posteriore"},{"n":"Deadlift - rack pull","c":"Catena posteriore"},{"n":"Deadlift - sumo","c":"Catena posteriore"},{"n":"Deadlift - touch-and-go","c":"Catena posteriore"},{"n":"Dip alle parallele","c":"Petto / Tricipiti"},{"n":"Dip alle parallele - assistite","c":"Petto / Tricipiti"},{"n":"Dip alle parallele - busto inclinato","c":"Petto / Tricipiti"},{"n":"Dip alle parallele - busto verticale","c":"Petto / Tricipiti"},{"n":"Dip alle parallele - con elastico","c":"Petto / Tricipiti"},{"n":"Dip alle parallele - negative","c":"Petto / Tricipiti"},{"n":"Dip alle parallele - zavorrate","c":"Petto / Tricipiti"},{"n":"Dumbbell Bench Press","c":"Petto"},{"n":"Dumbbell Bench Press - alternata","c":"Petto"},{"n":"Dumbbell Bench Press - presa neutra","c":"Petto"},{"n":"Dumbbell Bench Press - presa prona","c":"Petto"},{"n":"Dumbbell Bench Press - unilaterale","c":"Petto"},{"n":"Face Pull","c":"Spalle / Schiena"},{"n":"Face Pull - al viso","c":"Spalle / Schiena"},{"n":"Face Pull - alla fronte","c":"Spalle / Schiena"},{"n":"Face Pull - con extra-rotazione","c":"Spalle / Schiena"},{"n":"Face Pull - in ginocchio","c":"Spalle / Schiena"},{"n":"Face Pull - presa neutra","c":"Spalle / Schiena"},{"n":"Face Pull - seduto","c":"Spalle / Schiena"},{"n":"Farmer's Walk","c":"Full body / Grip"},{"n":"Farmer's Walk - bilaterale","c":"Full body / Grip"},{"n":"Farmer's Walk - con kettlebell","c":"Full body / Grip"},{"n":"Farmer's Walk - con trap bar","c":"Full body / Grip"},{"n":"Farmer's Walk - leggero lungo","c":"Full body / Grip"},{"n":"Farmer's Walk - pesante breve","c":"Full body / Grip"},{"n":"Farmer's Walk - suitcase carry unilaterale","c":"Full body / Grip"},{"n":"French Press","c":"Tricipiti"},{"n":"French Press - con bilanciere dritto","c":"Tricipiti"},{"n":"French Press - con manubri","c":"Tricipiti"},{"n":"French Press - dietro la testa","c":"Tricipiti"},{"n":"French Press - sdraiato con EZ","c":"Tricipiti"},{"n":"French Press - su panca inclinata","c":"Tricipiti"},{"n":"French Press - unilaterale","c":"Tricipiti"},{"n":"Front Squat","c":"Gambe"},{"n":"Front Squat - con pausa","c":"Gambe"},{"n":"Front Squat - con straps","c":"Gambe"},{"n":"Front Squat - presa clean","c":"Gambe"},{"n":"Front Squat - presa incrociata","c":"Gambe"},{"n":"Glute Bridge","c":"Glutei"},{"n":"Glute Bridge - a corpo libero","c":"Glutei"},{"n":"Glute Bridge - con bilanciere","c":"Glutei"},{"n":"Glute Bridge - con miniband","c":"Glutei"},{"n":"Glute Bridge - feet elevated","c":"Glutei"},{"n":"Glute Bridge - unilaterale","c":"Glutei"},{"n":"Goblet Squat","c":"Gambe"},{"n":"Goblet Squat - con pausa","c":"Gambe"},{"n":"Goblet Squat - heels elevated","c":"Gambe"},{"n":"Goblet Squat - standard","c":"Gambe"},{"n":"Goblet Squat - sumo goblet","c":"Gambe"},{"n":"Good Morning","c":"Catena posteriore"},{"n":"Good Morning - a gambe tese","c":"Catena posteriore"},{"n":"Good Morning - al multipower","c":"Catena posteriore"},{"n":"Good Morning - con banda elastica","c":"Catena posteriore"},{"n":"Good Morning - high bar","c":"Catena posteriore"},{"n":"Good Morning - low bar","c":"Catena posteriore"},{"n":"Good Morning - seated","c":"Catena posteriore"},{"n":"Hack Squat","c":"Gambe"},{"n":"Hack Squat - piedi alti","c":"Gambe"},{"n":"Hack Squat - piedi bassi","c":"Gambe"},{"n":"Hack Squat - piedi larghi","c":"Gambe"},{"n":"Hack Squat - piedi stretti","c":"Gambe"},{"n":"Hack Squat - reverse hack squat","c":"Gambe"},{"n":"Hack Squat - stance standard","c":"Gambe"},{"n":"Hack Squat - unilaterale","c":"Gambe"},{"n":"Hammer Curl","c":"Bicipiti / Avambracci"},{"n":"Hammer Curl - al cavo con corda","c":"Bicipiti / Avambracci"},{"n":"Hammer Curl - alternato","c":"Bicipiti / Avambracci"},{"n":"Hammer Curl - cross-body","c":"Bicipiti / Avambracci"},{"n":"Hammer Curl - simultaneo","c":"Bicipiti / Avambracci"},{"n":"Hammer Curl - su panca inclinata","c":"Bicipiti / Avambracci"},{"n":"Hammer Curl - unilaterale","c":"Bicipiti / Avambracci"},{"n":"Hip Thrust","c":"Glutei"},{"n":"Hip Thrust - al multipower","c":"Glutei"},{"n":"Hip Thrust - alla macchina","c":"Glutei"},{"n":"Hip Thrust - B-stance","c":"Glutei"},{"n":"Hip Thrust - con bilanciere","c":"Glutei"},{"n":"Hip Thrust - con miniband","c":"Glutei"},{"n":"Hip Thrust - con pausa in alto","c":"Glutei"},{"n":"Hip Thrust - unilaterale","c":"Glutei"},{"n":"Hyperextension","c":"Schiena / Catena posteriore"},{"n":"Hyperextension - 45 gradi","c":"Schiena / Catena posteriore"},{"n":"Hyperextension - 90 gradi","c":"Schiena / Catena posteriore"},{"n":"Hyperextension - a una gamba","c":"Schiena / Catena posteriore"},{"n":"Hyperextension - con disco","c":"Schiena / Catena posteriore"},{"n":"Hyperextension - con manubrio","c":"Schiena / Catena posteriore"},{"n":"Hyperextension - enfasi glutei","c":"Schiena / Catena posteriore"},{"n":"Incline Bench Press","c":"Petto"},{"n":"Incline Bench Press - al multipower","c":"Petto"},{"n":"Incline Bench Press - bilanciere 15°","c":"Petto"},{"n":"Incline Bench Press - bilanciere 30°","c":"Petto"},{"n":"Incline Bench Press - bilanciere 45°","c":"Petto"},{"n":"Incline Bench Press - manubri 15°","c":"Petto"},{"n":"Incline Bench Press - manubri 30°","c":"Petto"},{"n":"Incline Bench Press - manubri 45°","c":"Petto"},{"n":"Incline Bench Press - presa stretta","c":"Petto"},{"n":"Kettlebell Swing","c":"Catena posteriore"},{"n":"Kettlebell Swing - alternato","c":"Catena posteriore"},{"n":"Kettlebell Swing - American swing","c":"Catena posteriore"},{"n":"Kettlebell Swing - one-arm swing","c":"Catena posteriore"},{"n":"Kettlebell Swing - Russian swing","c":"Catena posteriore"},{"n":"Landmine Press","c":"Spalle / Petto"},{"n":"Landmine Press - bilaterale","c":"Spalle / Petto"},{"n":"Landmine Press - half-kneeling","c":"Spalle / Petto"},{"n":"Landmine Press - in piedi","c":"Spalle / Petto"},{"n":"Landmine Press - unilaterale","c":"Spalle / Petto"},{"n":"Lat Machine","c":"Schiena"},{"n":"Lat Machine - dietro la nuca","c":"Schiena"},{"n":"Lat Machine - presa larga prona","c":"Schiena"},{"n":"Lat Machine - presa media prona","c":"Schiena"},{"n":"Lat Machine - presa stretta neutra","c":"Schiena"},{"n":"Lat Machine - presa supina","c":"Schiena"},{"n":"Lat Machine - presa triangolo","c":"Schiena"},{"n":"Lat Machine - unilaterale","c":"Schiena"},{"n":"Lat Pulldown","c":"Schiena"},{"n":"Lat Pulldown - presa larga","c":"Schiena"},{"n":"Lat Pulldown - presa neutra","c":"Schiena"},{"n":"Lat Pulldown - presa stretta","c":"Schiena"},{"n":"Lat Pulldown - presa supina","c":"Schiena"},{"n":"Lat Pulldown - straight-arm pulldown","c":"Schiena"},{"n":"Lat Pulldown - unilaterale","c":"Schiena"},{"n":"Leg Curl","c":"Femorali"},{"n":"Leg Curl - con fitball","c":"Femorali"},{"n":"Leg Curl - in piedi","c":"Femorali"},{"n":"Leg Curl - Nordic assistito","c":"Femorali"},{"n":"Leg Curl - sdraiato","c":"Femorali"},{"n":"Leg Curl - seduto","c":"Femorali"},{"n":"Leg Curl - unilaterale","c":"Femorali"},{"n":"Leg Extension","c":"Quadricipiti"},{"n":"Leg Extension - bilaterale","c":"Quadricipiti"},{"n":"Leg Extension - con fermo in alto","c":"Quadricipiti"},{"n":"Leg Extension - punte leggermente esterne","c":"Quadricipiti"},{"n":"Leg Extension - punte leggermente interne","c":"Quadricipiti"},{"n":"Leg Extension - punte neutre","c":"Quadricipiti"},{"n":"Leg Extension - unilaterale","c":"Quadricipiti"},{"n":"Leg Press","c":"Gambe"},{"n":"Leg Press - 45 gradi","c":"Gambe"},{"n":"Leg Press - calf press","c":"Gambe"},{"n":"Leg Press - orizzontale","c":"Gambe"},{"n":"Leg Press - piedi alti","c":"Gambe"},{"n":"Leg Press - piedi bassi","c":"Gambe"},{"n":"Leg Press - piedi larghi","c":"Gambe"},{"n":"Leg Press - piedi stretti","c":"Gambe"},{"n":"Leg Press - unilaterale","c":"Gambe"},{"n":"Leg Press - verticale","c":"Gambe"},{"n":"Leg Raise","c":"Addome"},{"n":"Leg Raise - alla captain chair","c":"Addome"},{"n":"Leg Raise - appeso","c":"Addome"},{"n":"Leg Raise - con torsione","c":"Addome"},{"n":"Leg Raise - gambe tese","c":"Addome"},{"n":"Leg Raise - ginocchia flesse","c":"Addome"},{"n":"Leg Raise - sdraiato","c":"Addome"},{"n":"Leg Raise - toes-to-bar","c":"Addome"},{"n":"Lento Avanti","c":"Spalle"},{"n":"Lento Avanti - al multipower","c":"Spalle"},{"n":"Lento Avanti - in piedi","c":"Spalle"},{"n":"Lento Avanti - presa larga","c":"Spalle"},{"n":"Lento Avanti - presa standard","c":"Spalle"},{"n":"Lento Avanti - presa stretta","c":"Spalle"},{"n":"Lento Avanti - seduto","c":"Spalle"},{"n":"Military Press","c":"Spalle"},{"n":"Military Press - clean to press","c":"Spalle"},{"n":"Military Press - dal rack","c":"Spalle"},{"n":"Military Press - presa larga","c":"Spalle"},{"n":"Military Press - presa standard","c":"Spalle"},{"n":"Military Press - presa stretta","c":"Spalle"},{"n":"Military Press - seduto","c":"Spalle"},{"n":"Military Press - strict press","c":"Spalle"},{"n":"Mountain Climber","c":"Core / Cardio"},{"n":"Mountain Climber - con slider","c":"Core / Cardio"},{"n":"Mountain Climber - cross-body","c":"Core / Cardio"},{"n":"Mountain Climber - lento controllato","c":"Core / Cardio"},{"n":"Mountain Climber - standard","c":"Core / Cardio"},{"n":"Mountain Climber - veloce","c":"Core / Cardio"},{"n":"Nordic Hamstring Curl","c":"Femorali"},{"n":"Nordic Hamstring Curl - assistito","c":"Femorali"},{"n":"Nordic Hamstring Curl - completo","c":"Femorali"},{"n":"Nordic Hamstring Curl - con elastico","c":"Femorali"},{"n":"Nordic Hamstring Curl - eccentrico","c":"Femorali"},{"n":"Panca inclinata con manubri","c":"Petto"},{"n":"Panca inclinata con manubri - 15°","c":"Petto"},{"n":"Panca inclinata con manubri - 30°","c":"Petto"},{"n":"Panca inclinata con manubri - 45°","c":"Petto"},{"n":"Panca inclinata con manubri - alternata","c":"Petto"},{"n":"Panca inclinata con manubri - presa neutra","c":"Petto"},{"n":"Panca inclinata con manubri - presa prona","c":"Petto"},{"n":"Panca inclinata con manubri - unilaterale","c":"Petto"},{"n":"Panca piana","c":"Petto"},{"n":"Panca piana - al multipower","c":"Petto"},{"n":"Panca piana - con bilanciere","c":"Petto"},{"n":"Panca piana - con manubri","c":"Petto"},{"n":"Panca piana - con pausa","c":"Petto"},{"n":"Panca piana - presa inversa","c":"Petto"},{"n":"Panca piana - presa larga","c":"Petto"},{"n":"Panca piana - presa stretta","c":"Petto"},{"n":"Panca piana - Spoto press","c":"Petto"},{"n":"Pec Deck","c":"Petto"},{"n":"Pec Deck - con fermo in chiusura","c":"Petto"},{"n":"Pec Deck - gomiti piegati","c":"Petto"},{"n":"Pec Deck - presa neutra","c":"Petto"},{"n":"Pec Deck - unilaterale","c":"Petto"},{"n":"Pendlay Row","c":"Schiena"},{"n":"Pendlay Row - con pausa","c":"Schiena"},{"n":"Pendlay Row - presa larga","c":"Schiena"},{"n":"Pendlay Row - presa media","c":"Schiena"},{"n":"Pendlay Row - presa prona","c":"Schiena"},{"n":"Plank","c":"Core"},{"n":"Plank - con shoulder tap","c":"Core"},{"n":"Plank - con sovraccarico","c":"Core"},{"n":"Plank - frontale su gomiti","c":"Core"},{"n":"Plank - frontale su mani","c":"Core"},{"n":"Plank - laterale","c":"Core"},{"n":"Plank - laterale con abduzione","c":"Core"},{"n":"Plank - RKC plank","c":"Core"},{"n":"Preacher Curl","c":"Bicipiti"},{"n":"Preacher Curl - bilanciere dritto","c":"Bicipiti"},{"n":"Preacher Curl - EZ","c":"Bicipiti"},{"n":"Preacher Curl - macchina","c":"Bicipiti"},{"n":"Preacher Curl - manubrio unilaterale","c":"Bicipiti"},{"n":"Pull-Over","c":"Petto / Schiena"},{"n":"Pull-Over - al cavo","c":"Petto / Schiena"},{"n":"Pull-Over - alla macchina","c":"Petto / Schiena"},{"n":"Pull-Over - braccia tese","c":"Petto / Schiena"},{"n":"Pull-Over - con bilanciere EZ","c":"Petto / Schiena"},{"n":"Pull-Over - con manubrio","c":"Petto / Schiena"},{"n":"Pull-Up","c":"Schiena"},{"n":"Pull-Up - assistita","c":"Schiena"},{"n":"Pull-Up - con elastico","c":"Schiena"},{"n":"Pull-Up - eccentrica","c":"Schiena"},{"n":"Pull-Up - presa neutra","c":"Schiena"},{"n":"Pull-Up - presa prona larga","c":"Schiena"},{"n":"Pull-Up - presa prona media","c":"Schiena"},{"n":"Pull-Up - zavorrata","c":"Schiena"},{"n":"Pulley Row","c":"Schiena"},{"n":"Pulley Row - barra larga prona","c":"Schiena"},{"n":"Pulley Row - con fermo in retrazione","c":"Schiena"},{"n":"Pulley Row - corda","c":"Schiena"},{"n":"Pulley Row - presa supina","c":"Schiena"},{"n":"Pulley Row - triangolo stretto","c":"Schiena"},{"n":"Pulley Row - unilaterale","c":"Schiena"},{"n":"Push-Down Tricipiti","c":"Tricipiti"},{"n":"Push-Down Tricipiti - barra dritta","c":"Tricipiti"},{"n":"Push-Down Tricipiti - barra V","c":"Tricipiti"},{"n":"Push-Down Tricipiti - corda","c":"Tricipiti"},{"n":"Push-Down Tricipiti - cross-body","c":"Tricipiti"},{"n":"Push-Down Tricipiti - presa inversa","c":"Tricipiti"},{"n":"Push-Down Tricipiti - unilaterale","c":"Tricipiti"},{"n":"Push-Up","c":"Petto"},{"n":"Push-Up - agli anelli","c":"Petto"},{"n":"Push-Up - archer","c":"Petto"},{"n":"Push-Up - con sovraccarico","c":"Petto"},{"n":"Push-Up - declinato","c":"Petto"},{"n":"Push-Up - diamond","c":"Petto"},{"n":"Push-Up - inclinato","c":"Petto"},{"n":"Push-Up - plyometric","c":"Petto"},{"n":"Push-Up - presa larga","c":"Petto"},{"n":"Push-Up - presa stretta","c":"Petto"},{"n":"Push-Up - standard","c":"Petto"},{"n":"Rematore con bilanciere","c":"Schiena"},{"n":"Rematore con bilanciere - busto 45°","c":"Schiena"},{"n":"Rematore con bilanciere - busto parallelo al suolo","c":"Schiena"},{"n":"Rematore con bilanciere - presa larga","c":"Schiena"},{"n":"Rematore con bilanciere - presa prona","c":"Schiena"},{"n":"Rematore con bilanciere - presa stretta","c":"Schiena"},{"n":"Rematore con bilanciere - presa supina","c":"Schiena"},{"n":"Rematore con bilanciere - Yates row","c":"Schiena"},{"n":"Rematore con manubrio","c":"Schiena"},{"n":"Rematore con manubrio - chest-supported","c":"Schiena"},{"n":"Rematore con manubrio - due manubri","c":"Schiena"},{"n":"Rematore con manubrio - gomito aperto","c":"Schiena"},{"n":"Rematore con manubrio - gomito vicino al busto","c":"Schiena"},{"n":"Rematore con manubrio - seal row","c":"Schiena"},{"n":"Rematore con manubrio - un braccio su panca","c":"Schiena"},{"n":"Reverse Fly","c":"Spalle / Schiena"},{"n":"Reverse Fly - cavi","c":"Spalle / Schiena"},{"n":"Reverse Fly - chest-supported","c":"Spalle / Schiena"},{"n":"Reverse Fly - manubri","c":"Spalle / Schiena"},{"n":"Reverse Fly - pec deck inversa","c":"Spalle / Schiena"},{"n":"Romanian Deadlift","c":"Catena posteriore"},{"n":"Romanian Deadlift - al multipower","c":"Catena posteriore"},{"n":"Romanian Deadlift - B-stance","c":"Catena posteriore"},{"n":"Romanian Deadlift - con bilanciere","c":"Catena posteriore"},{"n":"Romanian Deadlift - con manubri","c":"Catena posteriore"},{"n":"Romanian Deadlift - deficit","c":"Catena posteriore"},{"n":"Romanian Deadlift - unilaterale","c":"Catena posteriore"},{"n":"Russian Twist","c":"Core"},{"n":"Russian Twist - a corpo libero","c":"Core"},{"n":"Russian Twist - con disco","c":"Core"},{"n":"Russian Twist - con manubrio","c":"Core"},{"n":"Russian Twist - con palla medica","c":"Core"},{"n":"Russian Twist - piedi a terra","c":"Core"},{"n":"Russian Twist - piedi sollevati","c":"Core"},{"n":"Seated Cable Row","c":"Schiena"},{"n":"Seated Cable Row - larga","c":"Schiena"},{"n":"Seated Cable Row - neutra","c":"Schiena"},{"n":"Seated Cable Row - presa stretta","c":"Schiena"},{"n":"Seated Cable Row - supina","c":"Schiena"},{"n":"Seated Cable Row - unilaterale","c":"Schiena"},{"n":"Shoulder Press","c":"Spalle"},{"n":"Shoulder Press - alla macchina","c":"Spalle"},{"n":"Shoulder Press - con manubri in piedi","c":"Spalle"},{"n":"Shoulder Press - con manubri seduto","c":"Spalle"},{"n":"Shoulder Press - presa neutra","c":"Spalle"},{"n":"Shoulder Press - presa prona","c":"Spalle"},{"n":"Shoulder Press - unilaterale","c":"Spalle"},{"n":"Shrug","c":"Trapezio"},{"n":"Shrug - al multipower","c":"Trapezio"},{"n":"Shrug - con bilanciere","c":"Trapezio"},{"n":"Shrug - con manubri","c":"Trapezio"},{"n":"Shrug - con trap bar","c":"Trapezio"},{"n":"Shrug - dietro il corpo","c":"Trapezio"},{"n":"Shrug - unilaterale","c":"Trapezio"},{"n":"Sit-Up","c":"Addome"},{"n":"Sit-Up - butterfly sit-up","c":"Addome"},{"n":"Sit-Up - con sovraccarico","c":"Addome"},{"n":"Sit-Up - standard","c":"Addome"},{"n":"Sit-Up - su panca declinata","c":"Addome"},{"n":"Skull Crusher","c":"Tricipiti"},{"n":"Skull Crusher - bilanciere dritto","c":"Tricipiti"},{"n":"Skull Crusher - declinato","c":"Tricipiti"},{"n":"Skull Crusher - EZ","c":"Tricipiti"},{"n":"Skull Crusher - inclinato","c":"Tricipiti"},{"n":"Skull Crusher - manubri","c":"Tricipiti"},{"n":"Smith Machine Squat","c":"Gambe"},{"n":"Smith Machine Squat - piedi avanti","c":"Gambe"},{"n":"Smith Machine Squat - stance larga","c":"Gambe"},{"n":"Smith Machine Squat - stance standard","c":"Gambe"},{"n":"Smith Machine Squat - stance stretta","c":"Gambe"},{"n":"Squat","c":"Gambe"},{"n":"Squat - al multipower","c":"Gambe"},{"n":"Squat - back squat high bar","c":"Gambe"},{"n":"Squat - back squat low bar","c":"Gambe"},{"n":"Squat - box squat","c":"Gambe"},{"n":"Squat - front squat","c":"Gambe"},{"n":"Squat - goblet squat","c":"Gambe"},{"n":"Squat - overhead squat","c":"Gambe"},{"n":"Squat - pause squat","c":"Gambe"},{"n":"Squat - sumo squat","c":"Gambe"},{"n":"Squat - tempo squat","c":"Gambe"},{"n":"Squat - zercher squat","c":"Gambe"},{"n":"Stacco Sumo","c":"Catena posteriore"},{"n":"Stacco Sumo - al multipower","c":"Catena posteriore"},{"n":"Stacco Sumo - con pausa","c":"Catena posteriore"},{"n":"Stacco Sumo - deficit","c":"Catena posteriore"},{"n":"Stacco Sumo - stance larga","c":"Catena posteriore"},{"n":"Stacco Sumo - stance moderata","c":"Catena posteriore"},{"n":"Step-Up","c":"Gambe / Glutei"},{"n":"Step-Up - a corpo libero","c":"Gambe / Glutei"},{"n":"Step-Up - alto","c":"Gambe / Glutei"},{"n":"Step-Up - basso","c":"Gambe / Glutei"},{"n":"Step-Up - con bilanciere","c":"Gambe / Glutei"},{"n":"Step-Up - con manubri","c":"Gambe / Glutei"},{"n":"Step-Up - cross-over","c":"Gambe / Glutei"},{"n":"Step-Up - laterale","c":"Gambe / Glutei"},{"n":"Straight-Arm Pulldown","c":"Schiena"},{"n":"Straight-Arm Pulldown - barra dritta","c":"Schiena"},{"n":"Straight-Arm Pulldown - corda","c":"Schiena"},{"n":"Straight-Arm Pulldown - unilaterale","c":"Schiena"},{"n":"T-Bar Row","c":"Schiena"},{"n":"T-Bar Row - chest-supported","c":"Schiena"},{"n":"T-Bar Row - landmine con triangolo","c":"Schiena"},{"n":"T-Bar Row - presa larga prona","c":"Schiena"},{"n":"T-Bar Row - presa neutra stretta","c":"Schiena"},{"n":"T-Bar Row - unilaterale","c":"Schiena"},{"n":"Triceps Dip","c":"Tricipiti"},{"n":"Triceps Dip - assistite","c":"Tricipiti"},{"n":"Triceps Dip - busto verticale","c":"Tricipiti"},{"n":"Triceps Dip - negative","c":"Tricipiti"},{"n":"Triceps Dip - zavorrate","c":"Tricipiti"},{"n":"Triceps Kickback","c":"Tricipiti"},{"n":"Triceps Kickback - al cavo","c":"Tricipiti"},{"n":"Triceps Kickback - con manubrio","c":"Tricipiti"},{"n":"Triceps Kickback - due braccia","c":"Tricipiti"},{"n":"Triceps Kickback - su panca","c":"Tricipiti"},{"n":"Triceps Kickback - unilaterale","c":"Tricipiti"},{"n":"Upright Row","c":"Spalle / Trapezio"},{"n":"Upright Row - al cavo","c":"Spalle / Trapezio"},{"n":"Upright Row - con manubri","c":"Spalle / Trapezio"},{"n":"Upright Row - presa larga","c":"Spalle / Trapezio"},{"n":"Upright Row - presa media","c":"Spalle / Trapezio"},{"n":"Walking Lunge","c":"Gambe / Glutei"},{"n":"Walking Lunge - a corpo libero","c":"Gambe / Glutei"},{"n":"Walking Lunge - con bilanciere","c":"Gambe / Glutei"},{"n":"Walking Lunge - con manubri","c":"Gambe / Glutei"},{"n":"Walking Lunge - overhead","c":"Gambe / Glutei"},{"n":"Woodchopper","c":"Core"},{"n":"Woodchopper - alto-basso","c":"Core"},{"n":"Woodchopper - basso-alto","c":"Core"},{"n":"Woodchopper - in ginocchio","c":"Core"},{"n":"Woodchopper - mezzo inginocchio","c":"Core"},{"n":"Woodchopper - orizzontale","c":"Core"}];
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+async function storageGet(key) {
+  const v = localStorage.getItem(key);
+  return v === null ? null : { value: v };
+}
+async function storageSet(key, value) {
+  localStorage.setItem(key, value);
+  return { value };
+}
+
+// migra vecchi formati verso: day -> sections[] -> { subtitle, exercises[] }
+function migrateSection(section) {
+  return { id: section.id || uid(), subtitle: section.subtitle || "", exercises: section.exercises || [] };
+}
+function migrateDay(day) {
+  if (day.sections) return { ...day, sections: day.sections.map(migrateSection) };
+  return { id: day.id, name: day.name, sections: [{ id: uid(), subtitle: "", exercises: day.exercises || [] }] };
+}
+function migratePlan(plan) {
+  return { days: (plan.days || []).map(migrateDay) };
+}
+
+function useBeep() {
+  const ctxRef = useRef(null);
+  return useCallback(() => {
+    try {
+      if (!ctxRef.current) ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = ctxRef.current;
+      [0, 0.18, 0.36].forEach((t, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.value = i === 2 ? 1046 : 880;
+        gain.gain.setValueAtTime(0.001, ctx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.15);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + t);
+        osc.stop(ctx.currentTime + t + 0.16);
+      });
+    } catch (e) {}
+  }, []);
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* --- icone minimali inline, nessuna dipendenza esterna --- */
+const Icon = ({ children, size = 18, color = "currentColor", ...rest }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...rest}>
+    {children}
+  </svg>
+);
+const Plus = (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></Icon>;
+const Trash2 = (p) => <Icon {...p}><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></Icon>;
+const Check = (p) => <Icon {...p}><polyline points="20 6 9 17 4 12" /></Icon>;
+const ChevronRight = (p) => <Icon {...p}><polyline points="9 18 15 12 9 6" /></Icon>;
+const ChevronLeft = (p) => <Icon {...p}><polyline points="15 18 9 12 15 6" /></Icon>;
+const X = (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></Icon>;
+const ClockIcon = (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15 14" /></Icon>;
+const BarChart3 = (p) => <Icon {...p}><line x1="4" y1="20" x2="4" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="20" y1="20" x2="20" y2="14" /></Icon>;
+const Dumbbell = (p) => <Icon {...p}><path d="M6 7v10M18 7v10M2 10v4M22 10v4M6 12h12" /></Icon>;
+const Play = (p) => <Icon {...p}><polygon points="6 3 20 12 6 21 6 3" /></Icon>;
+const Pause = (p) => <Icon {...p}><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></Icon>;
+const ClipboardList = (p) => <Icon {...p}><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V2h6v2M9 10h6M9 14h6M9 18h3" /></Icon>;
+const HistoryIcon = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M12 7v5l3 3" /></Icon>;
+const Flame = (p) => <Icon {...p}><path d="M12 2s5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 1-3s1 2 2 2c1.5 0-1-3 2-9z" /></Icon>;
+const Layers = (p) => <Icon {...p}><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></Icon>;
+const TimerIcon = (p) => <Icon {...p}><line x1="10" y1="2" x2="14" y2="2" /><line x1="12" y1="14" x2="12" y2="9" /><circle cx="12" cy="14" r="8" /></Icon>;
+const RotateCcw = (p) => <Icon {...p}><path d="M3 12a9 9 0 1 0 2.6-6.3" /><polyline points="3 5 3 11 9 11" /></Icon>;
+const Search = (p) => <Icon {...p}><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></Icon>;
+
+function App() {
+  const [view, setView] = useState("scheda");
+  const [plan, setPlan] = useState({ days: [] });
+  const [history, setHistory] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        let p = await storageGet(PLAN_KEY);
+        if (!p) {
+          for (const oldKey of OLD_PLAN_KEYS) {
+            const old = await storageGet(oldKey);
+            if (old) { p = { value: JSON.stringify(migratePlan(JSON.parse(old.value))) }; break; }
+          }
+        }
+        const h = await storageGet(HISTORY_KEY);
+        if (p) setPlan(migratePlan(JSON.parse(p.value)));
+        if (h) setHistory(JSON.parse(h.value));
+      } catch (e) {
+        setError("Impossibile caricare i dati salvati.");
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!loaded) return;
+    storageSet(PLAN_KEY, JSON.stringify(plan)).catch(() => setError("Salvataggio scheda non riuscito."));
+  }, [plan, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    storageSet(HISTORY_KEY, JSON.stringify(history)).catch(() => setError("Salvataggio storico non riuscito."));
+  }, [history, loaded]);
+
+  const lastEntryFor = useCallback(
+    (exerciseId) => {
+      for (let i = history.length - 1; i >= 0; i--) {
+        const e = history[i].entries.find((x) => x.exerciseId === exerciseId);
+        if (e && e.sets.some((s) => s.weight !== "")) return e;
+      }
+      return null;
+    },
+    [history]
+  );
+
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#131417", minHeight: "100vh", color: "#EDEBE3", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+        .bn { font-family: 'Bebas Neue', 'Inter', sans-serif; letter-spacing: 0.02em; }
+        input, select { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #2c2e33; border-radius: 3px; }
+        .tap:active { transform: scale(0.97); }
+      `}</style>
+
+      {error && <div style={{ background: "#3a1f1f", color: "#F2B4B4", padding: "8px 16px", fontSize: 13 }}>{error}</div>}
+
+      <header style={{ padding: "calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 16px calc(20px + env(safe-area-inset-left))", borderBottom: "1px solid #24262b", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: "#F2C14E", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Dumbbell size={20} color="#131417" />
+        </div>
+        <h1 className="bn" style={{ fontSize: 28, margin: 0, lineHeight: 1 }}>IRON LOG</h1>
+      </header>
+
+      <main style={{ flex: 1, padding: "18px 16px 90px", maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+        {!loaded ? (
+          <p style={{ color: "#8B8D94", textAlign: "center", marginTop: 60 }}>Caricamento...</p>
+        ) : view === "scheda" ? (
+          <SchedaView plan={plan} setPlan={setPlan} />
+        ) : view === "allenamento" ? (
+          <AllenamentoView plan={plan} history={history} setHistory={setHistory} lastEntryFor={lastEntryFor} />
+        ) : (
+          <StoricoView history={history} setHistory={setHistory} plan={plan} />
+        )}
+      </main>
+
+      <nav style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#191a1e", borderTop: "1px solid #24262b", display: "flex", padding: "8px calc(12px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left))", justifyContent: "center", gap: 8 }}>
+        <div style={{ display: "flex", gap: 6, maxWidth: 480, width: "100%" }}>
+          <NavBtn active={view === "scheda"} onClick={() => setView("scheda")} icon={<ClipboardList size={20} />} label="Scheda" />
+          <NavBtn active={view === "allenamento"} onClick={() => setView("allenamento")} icon={<Flame size={20} />} label="Allenamento" />
+          <NavBtn active={view === "storico"} onClick={() => setView("storico")} icon={<HistoryIcon size={20} />} label="Storico" />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function NavBtn({ active, onClick, icon, label }) {
+  return (
+    <button className="tap" onClick={onClick} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 4px", borderRadius: 10, border: "none", background: active ? "#232520" : "transparent", color: active ? "#F2C14E" : "#8B8D94", cursor: "pointer" }}>
+      {icon}
+      <span style={{ fontSize: 11, fontWeight: 500 }}>{label}</span>
+    </button>
+  );
+}
+
+/* ---------------- SCHEDA ---------------- */
+
+function SchedaView({ plan, setPlan }) {
+  const [newDayName, setNewDayName] = useState("");
+  const addDay = () => {
+    const name = newDayName.trim();
+    if (!name) return;
+    const day = { id: uid(), name, sections: [{ id: uid(), subtitle: "", exercises: [] }] };
+    setPlan((p) => ({ ...p, days: [...p.days, day] }));
+    setNewDayName("");
+  };
+  const removeDay = (dayId) => setPlan((p) => ({ ...p, days: p.days.filter((d) => d.id !== dayId) }));
+
+  if (plan.days.length === 0) {
+    return (
+      <div>
+        <EmptyState title="Crea la tua scheda" body="Dividi l'allenamento in giornate, poi aggiungi sezioni con sottotitolo ed esercizi. Il tempo di recupero che imposti per ogni esercizio avvia in automatico il timer durante l'allenamento." />
+        <AddDayForm value={newDayName} setValue={setNewDayName} onAdd={addDay} />
+      </div>
+    );
+  }
+  return (
+    <div>
+      {plan.days.map((day) => <DayCard key={day.id} day={day} setPlan={setPlan} onRemove={() => removeDay(day.id)} />)}
+      <AddDayForm value={newDayName} setValue={setNewDayName} onAdd={addDay} />
+    </div>
+  );
+}
+
+function AddDayForm({ value, setValue, onAdd }) {
+  return (
+    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <input value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && onAdd()} placeholder="Nome giornata (es. Giorno 1)" style={inputStyle} />
+      <button className="tap" onClick={onAdd} style={primaryBtnStyle}><Plus size={18} /></button>
+    </div>
+  );
+}
+
+function DayCard({ day, setPlan, onRemove }) {
+  const [expanded, setExpanded] = useState(true);
+  const updateDay = (fn) => setPlan((p) => ({ ...p, days: p.days.map((d) => (d.id === day.id ? fn(d) : d)) }));
+
+  const addSection = () => updateDay((d) => ({ ...d, sections: [...d.sections, { id: uid(), subtitle: "", exercises: [] }] }));
+  const removeSection = (sectionId) => updateDay((d) => ({ ...d, sections: d.sections.filter((s) => s.id !== sectionId) }));
+  const setSubtitle = (sectionId, value) => updateDay((d) => ({ ...d, sections: d.sections.map((s) => (s.id === sectionId ? { ...s, subtitle: value } : s)) }));
+  const addExercise = (sectionId, ex) => updateDay((d) => ({ ...d, sections: d.sections.map((s) => (s.id === sectionId ? { ...s, exercises: [...s.exercises, ex] } : s)) }));
+  const removeExercise = (sectionId, exId) => updateDay((d) => ({ ...d, sections: d.sections.map((s) => (s.id === sectionId ? { ...s, exercises: s.exercises.filter((e) => e.id !== exId) } : s)) }));
+
+  const totalExercises = day.sections.reduce((n, s) => n + s.exercises.length, 0);
+
+  return (
+    <div style={{ ...cardStyle, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setExpanded((v) => !v)}>
+        <h2 className="bn" style={{ fontSize: 22, margin: 0, color: "#F2C14E" }}>{day.name}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 12, color: "#8B8D94" }}>{totalExercises} esercizi</span>
+          <button className="tap" onClick={(e) => { e.stopPropagation(); onRemove(); }} style={iconBtnStyle}><Trash2 size={16} color="#D96E6E" /></button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div style={{ marginTop: 14 }}>
+          {day.sections.map((section, idx) => (
+            <SectionBlock
+              key={section.id}
+              section={section}
+              index={idx}
+              canRemove={day.sections.length > 1}
+              onRemove={() => removeSection(section.id)}
+              onSubtitleChange={(v) => setSubtitle(section.id, v)}
+              onAddExercise={(ex) => addExercise(section.id, ex)}
+              onRemoveExercise={(exId) => removeExercise(section.id, exId)}
+            />
+          ))}
+          <button className="tap" onClick={addSection} style={{ ...secondaryBtnStyle, width: "100%", marginTop: 4 }}>
+            <Layers size={15} /> Aggiungi sezione
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function normalizeSearch(s) {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function ExerciseAutocomplete({ value, onChange, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function onOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onOutside);
+    document.addEventListener("touchstart", onOutside);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("touchstart", onOutside);
+    };
+  }, []);
+
+  const words = normalizeSearch((value || "").trim()).split(/\s+/).filter(Boolean);
+  const results = words.length === 0
+    ? EXERCISE_DB
+    : EXERCISE_DB.filter((ex) => {
+        const name = normalizeSearch(ex.n);
+        return words.every((w) => name.includes(w));
+      });
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative", marginBottom: 8 }}>
+      <div style={{ position: "relative" }}>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          style={{ ...inputStyle, paddingRight: 30 }}
+        />
+        <Search size={14} color="#5F6067" style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+      </div>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: 260, overflowY: "auto", background: "#15161a", border: "1px solid #2c2e33", borderRadius: 8, zIndex: 20, boxShadow: "0 10px 28px rgba(0,0,0,0.45)" }}>
+          {results.length === 0 ? (
+            <div style={{ padding: "10px 12px", fontSize: 12.5, color: "#5F6067", lineHeight: 1.4 }}>
+              Nessun esercizio trovato nel database. Puoi comunque aggiungerlo con il nome scritto sopra.
+            </div>
+          ) : (
+            results.map((ex, i) => (
+              <div
+                key={i}
+                onClick={() => { onChange(ex.n); setOpen(false); }}
+                className="tap"
+                style={{ padding: "9px 12px", fontSize: 13.5, cursor: "pointer", borderBottom: i < results.length - 1 ? "1px solid #202226" : "none", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
+              >
+                <span>{ex.n}</span>
+                <span style={{ fontSize: 10, color: "#5F6067", flexShrink: 0, whiteSpace: "nowrap" }}>{ex.c}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SectionBlock({ section, index, canRemove, onRemove, onSubtitleChange, onAddExercise, onRemoveExercise }) {
+  const [form, setForm] = useState({ name: "", sets: 3, reps: "8-12", rest: 90 });
+
+  const submitExercise = () => {
+    const name = form.name.trim();
+    if (!name) return;
+    onAddExercise({ id: uid(), name, sets: Math.max(1, Number(form.sets) || 1), reps: form.reps.trim() || "-", rest: Math.max(0, Number(form.rest) || 0) });
+    setForm({ name: "", sets: 3, reps: "8-12", rest: 90 });
+  };
+
+  return (
+    <div style={{ background: "#15161a", border: "1px solid #24262b", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <input
+          value={section.subtitle}
+          onChange={(e) => onSubtitleChange(e.target.value)}
+          placeholder={`Sottotitolo sezione ${index + 1} (es. Petto) — opzionale`}
+          style={{ ...inputStyle, fontWeight: 600, flex: 1 }}
+        />
+        {canRemove && (
+          <button className="tap" onClick={onRemove} style={iconBtnStyle}><Trash2 size={15} color="#5F6067" /></button>
+        )}
+      </div>
+
+      {section.exercises.map((ex) => (
+        <div key={ex.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid #24262b" }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{ex.name}</div>
+            <div style={{ fontSize: 12, color: "#8B8D94", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+              {ex.sets} serie &middot; {ex.reps} rip &middot; <TimerIcon size={11} /> {ex.rest}s recupero
+            </div>
+          </div>
+          <button className="tap" onClick={() => onRemoveExercise(ex.id)} style={iconBtnStyle}><Trash2 size={15} color="#5F6067" /></button>
+        </div>
+      ))}
+
+
+      <div style={{ marginTop: 10, background: "#191a1e", borderRadius: 8, padding: 12 }}>
+        <ExerciseAutocomplete value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Cerca o scrivi un esercizio..." />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <LabeledInput label="Serie" value={form.sets} onChange={(v) => setForm((f) => ({ ...f, sets: v }))} type="number" />
+          <LabeledInput label="Rip" value={form.reps} onChange={(v) => setForm((f) => ({ ...f, reps: v }))} />
+          <LabeledInput label="Recupero (s)" value={form.rest} onChange={(v) => setForm((f) => ({ ...f, rest: v }))} type="number" />
+        </div>
+        <button className="tap" onClick={submitExercise} style={{ ...primaryBtnStyle, width: "100%", marginTop: 10 }}><Plus size={16} /> Aggiungi esercizio</button>
+      </div>
+    </div>
+  );
+}
+
+function LabeledInput({ label, value, onChange, type = "text" }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span style={{ fontSize: 11, color: "#8B8D94" }}>{label}</span>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+    </label>
+  );
+}
+
+/* ---------------- ALLENAMENTO ---------------- */
+
+function AllenamentoView({ plan, history, setHistory, lastEntryFor }) {
+  const [session, setSession] = useState(null);
+  const [timer, setTimer] = useState(null); // timer di recupero (globale, tra le serie)
+  const intervalRef = useRef(null);
+  const beep = useBeep();
+
+  useEffect(() => {
+    if (timer && timer.running) {
+      intervalRef.current = setInterval(() => {
+        setTimer((t) => {
+          if (!t) return t;
+          if (t.remaining <= 1) { beep(); return { ...t, remaining: 0, running: false }; }
+          return { ...t, remaining: t.remaining - 1 };
+        });
+      }, 1000);
+      return () => clearInterval(intervalRef.current);
+    }
+  }, [timer && timer.running, timer && timer.total]);
+
+  if (plan.days.length === 0) return <EmptyState title="Nessuna scheda" body="Vai su Scheda e crea prima una giornata di allenamento." />;
+
+  if (!session) {
+    return (
+      <div>
+        <p style={{ color: "#8B8D94", fontSize: 14, marginBottom: 14 }}>Scegli la giornata da allenare oggi.</p>
+        {plan.days.map((day) => {
+          const totalExercises = day.sections.reduce((n, s) => n + s.exercises.length, 0);
+          return (
+            <button key={day.id} className="tap" onClick={() => {
+              const sections = day.sections.map((section) => ({
+                id: section.id,
+                subtitle: section.subtitle,
+                exerciseEntries: section.exercises.map((ex) => {
+                  const last = lastEntryFor(ex.id);
+                  return {
+                    exerciseId: ex.id, name: ex.name, subtitle: section.subtitle, rest: ex.rest,
+                    sets: Array.from({ length: ex.sets }, (_, i) => ({ weight: last && last.sets[i] ? last.sets[i].weight : "", reps: "", done: false })),
+                  };
+                }),
+              }));
+              setSession({ dayId: day.id, dayName: day.name, sections });
+            }} style={{ ...cardStyle, width: "100%", textAlign: "left", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+              <div>
+                <div className="bn" style={{ fontSize: 20, color: "#F2C14E" }}>{day.name}</div>
+                <div style={{ fontSize: 12, color: "#8B8D94" }}>{totalExercises} esercizi</div>
+              </div>
+              <ChevronRight size={20} color="#5F6067" />
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const startTimer = (seconds, label) => { if (seconds <= 0) return; setTimer({ total: seconds, remaining: seconds, running: true, label }); };
+  const setSet = (exerciseId, idx, field, value) => setSession((s) => ({ ...s, sections: s.sections.map((sec) => ({ ...sec, exerciseEntries: sec.exerciseEntries.map((e) => e.exerciseId !== exerciseId ? e : { ...e, sets: e.sets.map((st, i) => (i === idx ? { ...st, [field]: value } : st)) }) })) }));
+  const toggleDone = (exerciseId, idx, rest) => {
+    const currentEntry = session.sections.flatMap((sec) => sec.exerciseEntries).find((e) => e.exerciseId === exerciseId);
+    const willBeDone = !currentEntry.sets[idx].done;
+    setSession((s) => ({ ...s, sections: s.sections.map((sec) => ({ ...sec, exerciseEntries: sec.exerciseEntries.map((e) => e.exerciseId !== exerciseId ? e : { ...e, sets: e.sets.map((st, i) => (i === idx ? { ...st, done: !st.done } : st)) }) })) }));
+    if (willBeDone) startTimer(rest, "Recupero");
+  };
+  const finishSession = () => {
+    const entries = session.sections.flatMap((sec) => sec.exerciseEntries)
+      .map((e) => ({ exerciseId: e.exerciseId, name: e.name, subtitle: e.subtitle, sets: e.sets.filter((s) => s.weight !== "" || s.reps !== "").map((s) => ({ weight: s.weight, reps: s.reps })) }))
+      .filter((e) => e.sets.length > 0);
+    if (entries.length > 0) setHistory((h) => [...h, { id: uid(), date: new Date().toISOString(), dayId: session.dayId, dayName: session.dayName, entries }]);
+    setSession(null); setTimer(null);
+  };
+
+  return (
+    <div>
+      {timer && <RestTimer timer={timer} onPause={() => setTimer((t) => ({ ...t, running: !t.running }))} onAdjust={(d) => setTimer((t) => ({ ...t, remaining: Math.max(0, t.remaining + d), total: Math.max(t.total, t.remaining + d) }))} onClose={() => setTimer(null)} />}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h2 className="bn" style={{ fontSize: 24, margin: 0, color: "#F2C14E" }}>{session.dayName}</h2>
+        <button className="tap" onClick={() => { if (window.confirm("Interrompere l'allenamento senza salvare?")) { setSession(null); setTimer(null); } }} style={{ ...iconBtnStyle, color: "#8B8D94" }}><X size={18} /></button>
+      </div>
+
+      {session.sections.map((sec) => (
+        <div key={sec.id}>
+          {sec.subtitle && (
+            <div className="bn" style={{ fontSize: 15, color: "#8B8D94", margin: "14px 0 8px", letterSpacing: "0.06em", textTransform: "uppercase" }}>{sec.subtitle}</div>
+          )}
+          {sec.exerciseEntries.map((e) => (
+            <div key={e.exerciseId} style={{ ...cardStyle, marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
+                <span style={{ fontWeight: 600, fontSize: 15 }}>{e.name}</span>
+                <span style={{ fontSize: 11, color: "#8B8D94", display: "flex", alignItems: "center", gap: 4 }}><ClockIcon size={12} /> {e.rest}s</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "24px 1fr 1fr 32px", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                <span></span><span style={{ fontSize: 11, color: "#5F6067" }}>Kg</span><span style={{ fontSize: 11, color: "#5F6067" }}>Rip</span><span></span>
+              </div>
+              {e.sets.map((st, idx) => (
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "24px 1fr 1fr 32px", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: "#8B8D94", textAlign: "center" }}>{idx + 1}</span>
+                  <input value={st.weight} onChange={(ev) => setSet(e.exerciseId, idx, "weight", ev.target.value)} inputMode="decimal" placeholder="0" style={{ ...inputStyle, textAlign: "center", padding: "8px 6px", opacity: st.done ? 0.6 : 1 }} />
+                  <input value={st.reps} onChange={(ev) => setSet(e.exerciseId, idx, "reps", ev.target.value)} inputMode="numeric" placeholder="0" style={{ ...inputStyle, textAlign: "center", padding: "8px 6px", opacity: st.done ? 0.6 : 1 }} />
+                  <button className="tap" onClick={() => toggleDone(e.exerciseId, idx, e.rest)} style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: st.done ? "#3FA772" : "#24262b", color: st.done ? "#0D2417" : "#5F6067", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><Check size={16} /></button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <button className="tap" onClick={finishSession} style={{ ...primaryBtnStyle, width: "100%", padding: "14px", fontSize: 15 }}>Termina allenamento</button>
+    </div>
+  );
+}
+
+function RestTimer({ timer, onPause, onAdjust, onClose }) {
+  const pct = timer.total > 0 ? timer.remaining / timer.total : 0;
+  const r = 42, circ = 2 * Math.PI * r;
+  const finished = timer.remaining === 0;
+  return (
+    <div style={{ position: "sticky", top: 8, zIndex: 5, background: "#191a1e", border: "1px solid #24262b", borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+      <svg width="96" height="96" viewBox="0 0 96 96">
+        <circle cx="48" cy="48" r={r} fill="none" stroke="#24262b" strokeWidth="8" />
+        <circle cx="48" cy="48" r={r} fill="none" stroke={finished ? "#3FA772" : "#F2C14E"} strokeWidth="8" strokeDasharray={circ} strokeDashoffset={circ * (1 - pct)} strokeLinecap="round" transform="rotate(-90 48 48)" style={{ transition: "stroke-dashoffset 1s linear" }} />
+        <text x="48" y="53" textAnchor="middle" fontSize="20" fontWeight="600" fill="#EDEBE3">{formatTime(timer.remaining)}</text>
+      </svg>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, color: "#8B8D94", marginBottom: 8 }}>{finished ? "Recupero finito" : timer.label}</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="tap" onClick={() => onAdjust(-15)} style={smallBtnStyle}>-15s</button>
+          <button className="tap" onClick={() => onAdjust(15)} style={smallBtnStyle}>+15s</button>
+          <button className="tap" onClick={onPause} style={smallBtnStyle}>{timer.running ? <Pause size={14} /> : <Play size={14} />}</button>
+          <button className="tap" onClick={onClose} style={smallBtnStyle}><X size={14} /></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- STORICO ---------------- */
+
+function groupBySubtitle(entries) {
+  const groups = [];
+  entries.forEach((e) => {
+    const sub = e.subtitle || "";
+    const last = groups[groups.length - 1];
+    if (last && last.subtitle === sub) last.items.push(e);
+    else groups.push({ subtitle: sub, items: [e] });
+  });
+  return groups;
+}
+
+function StoricoView({ history, setHistory, plan }) {
+  const [expandedId, setExpandedId] = useState(null);
+  const allExercises = [];
+  const seen = new Set();
+  plan.days.forEach((d) => d.sections.forEach((s) => s.exercises.forEach((e) => { if (!seen.has(e.id)) { seen.add(e.id); allExercises.push(e); } })));
+  const [progressExId, setProgressExId] = useState(allExercises[0]?.id || "");
+  const [zoomSessionId, setZoomSessionId] = useState(null);
+
+  if (history.length === 0) return <EmptyState title="Nessun allenamento registrato" body="Le sessioni completate compariranno qui, con i pesi usati e l'andamento nel tempo." />;
+
+  const progressData = history.map((s) => {
+    const e = s.entries.find((x) => x.exerciseId === progressExId);
+    if (!e) return null;
+    const weights = e.sets.map((st) => parseFloat(st.weight)).filter((w) => !isNaN(w));
+    if (weights.length === 0) return null;
+    return { sessionId: s.id, date: s.date, max: Math.max(...weights) };
+  }).filter(Boolean);
+
+  const zoomedSession = zoomSessionId ? history.find((s) => s.id === zoomSessionId) : null;
+  const zoomedEntry = zoomedSession ? zoomedSession.entries.find((x) => x.exerciseId === progressExId) : null;
+
+  const removeSession = (id) => setHistory((h) => h.filter((s) => s.id !== id));
+
+  return (
+    <div>
+      {allExercises.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <BarChart3 size={16} color="#F2C14E" />
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Progressi peso</span>
+          </div>
+          <select value={progressExId} onChange={(e) => { setProgressExId(e.target.value); setZoomSessionId(null); }} style={{ ...inputStyle, marginBottom: 12 }}>
+            {allExercises.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          {zoomedEntry ? (
+            <div>
+              <button className="tap" onClick={() => setZoomSessionId(null)} style={{ ...smallBtnStyle, display: "flex", alignItems: "center", gap: 4, marginBottom: 10, background: "transparent", color: "#F2C14E", padding: "4px 2px" }}>
+                <ChevronLeft size={14} color="#F2C14E" /> Torna alla panoramica
+              </button>
+              <div style={{ fontSize: 12, color: "#8B8D94", marginBottom: 8 }}>{zoomedSession.dayName} · {formatDate(zoomedSession.date)} — andamento serie per serie</div>
+              <SetDetailChart entry={zoomedEntry} />
+            </div>
+          ) : progressData.length === 0 ? (
+            <p style={{ fontSize: 13, color: "#8B8D94" }}>Nessun dato per questo esercizio.</p>
+          ) : (
+            <div>
+              <MiniChart data={progressData} onSelectPoint={(id) => setZoomSessionId(id)} />
+              {progressData.length > 1 && <div style={{ fontSize: 11, color: "#5F6067", marginTop: 6, textAlign: "center" }}>Tocca un punto per vedere l'andamento serie per serie di quel giorno</div>}
+            </div>
+          )}
+        </div>
+      )}
+      {[...history].reverse().map((s) => {
+        const groups = groupBySubtitle(s.entries);
+        return (
+          <div key={s.id} style={{ ...cardStyle, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setExpandedId(expandedId === s.id ? null : s.id)}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 15 }}>{s.dayName}</div>
+                <div style={{ fontSize: 12, color: "#8B8D94" }}>{formatDate(s.date)}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button className="tap" onClick={(e) => { e.stopPropagation(); if (window.confirm("Eliminare questa sessione dallo storico?")) removeSession(s.id); }} style={iconBtnStyle}><Trash2 size={15} color="#5F6067" /></button>
+                <ChevronRight size={16} color="#5F6067" style={{ transform: expandedId === s.id ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+              </div>
+            </div>
+            {expandedId === s.id && (
+              <div style={{ marginTop: 10, borderTop: "1px solid #24262b", paddingTop: 10 }}>
+                {groups.map((group, gi) => (
+                  <div key={gi} style={{ marginBottom: 6 }}>
+                    {group.subtitle && <div style={{ fontSize: 11, color: "#5F6067", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{group.subtitle}</div>}
+                    {group.items.map((e) => (
+                      <div key={e.exerciseId} style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3 }}>{e.name}</div>
+                        <div style={{ fontSize: 12, color: "#8B8D94" }}>{e.sets.map((st) => `${st.weight || "-"}kg x${st.reps || "-"}`).join("  ·  ")}</div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MiniChart({ data, onSelectPoint }) {
+  const w = 280, h = 100, pad = 10;
+  const values = data.map((d) => d.max);
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const points = data.map((d, i) => {
+    const x = pad + (i / Math.max(1, data.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((d.max - min) / range) * (h - pad * 2);
+    return [x, y];
+  });
+  const path = points.map((p, i) => (i === 0 ? `M${p[0]},${p[1]}` : `L${p[0]},${p[1]}`)).join(" ");
+  return (
+    <div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
+        <path d={path} fill="none" stroke="#F2C14E" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {points.map((p, i) => (
+          <g key={i} onClick={() => onSelectPoint && onSelectPoint(data[i].sessionId)} style={{ cursor: onSelectPoint ? "pointer" : "default" }}>
+            <circle cx={p[0]} cy={p[1]} r="10" fill="transparent" />
+            <circle cx={p[0]} cy={p[1]} r="3" fill="#F2C14E" />
+          </g>
+        ))}
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#8B8D94", marginTop: 4 }}>
+        <span>{formatDate(data[0].date)}</span><span>Max: {max}kg</span><span>{formatDate(data[data.length - 1].date)}</span>
+      </div>
+    </div>
+  );
+}
+
+function SetDetailChart({ entry }) {
+  const points = entry.sets.map((st, i) => ({ setNum: i + 1, weight: parseFloat(st.weight), reps: st.reps })).filter((p) => !isNaN(p.weight));
+  if (points.length === 0) return <p style={{ fontSize: 13, color: "#8B8D94" }}>Nessun peso registrato per questa sessione.</p>;
+  const w = 280, h = 100, pad = 10;
+  const values = points.map((p) => p.weight);
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = max - min || 1;
+  const coords = points.map((p, i) => {
+    const x = pad + (i / Math.max(1, points.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((p.weight - min) / range) * (h - pad * 2);
+    return [x, y];
+  });
+  const path = coords.map((c, i) => (i === 0 ? `M${c[0]},${c[1]}` : `L${c[0]},${c[1]}`)).join(" ");
+  return (
+    <div>
+      <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid meet">
+        <path d={path} fill="none" stroke="#F2C14E" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {coords.map((c, i) => <circle key={i} cx={c[0]} cy={c[1]} r="3" fill="#F2C14E" />)}
+      </svg>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "4px 8px", fontSize: 11, color: "#8B8D94", marginTop: 4 }}>
+        {points.map((p, i) => <span key={i}>S{p.setNum}: {p.weight}kg{p.reps ? ` x${p.reps}` : ""}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ title, body }) {
+  return (
+    <div style={{ textAlign: "center", padding: "50px 20px", color: "#8B8D94" }}>
+      <Dumbbell size={32} color="#3a3c42" style={{ marginBottom: 12 }} />
+      <div className="bn" style={{ fontSize: 20, color: "#EDEBE3", marginBottom: 6 }}>{title}</div>
+      <p style={{ fontSize: 14, maxWidth: 280, margin: "0 auto" }}>{body}</p>
+    </div>
+  );
+}
+
+const cardStyle = { background: "#191a1e", border: "1px solid #24262b", borderRadius: 14, padding: 16 };
+const inputStyle = { background: "#131417", border: "1px solid #2c2e33", borderRadius: 8, color: "#EDEBE3", padding: "9px 10px", fontSize: 14, width: "100%", boxSizing: "border-box", outline: "none" };
+const primaryBtnStyle = { background: "#F2C14E", color: "#131417", border: "none", borderRadius: 8, padding: "9px 14px", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 };
+const secondaryBtnStyle = { background: "#232520", color: "#F2C14E", border: "1px dashed #3a3c30", borderRadius: 8, padding: "9px 14px", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 };
+const iconBtnStyle = { background: "transparent", border: "none", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" };
+const smallBtnStyle = { background: "#24262b", border: "none", borderRadius: 6, color: "#EDEBE3", padding: "5px 8px", fontSize: 12, cursor: "pointer" };
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
